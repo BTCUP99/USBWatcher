@@ -136,7 +136,7 @@ namespace USBWatcher
             }
         }
 
-        private static Dictionary<string, char> _deviceToDrive;
+        private static Dictionary<string, char> _deviceToDrive = new Dictionary<string, char>(StringComparer.OrdinalIgnoreCase);
         private static object _lock = new object();
 
         public static void BuildDeviceToDriveMap()
