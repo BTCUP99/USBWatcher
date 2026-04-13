@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -86,6 +87,9 @@ namespace USBWatcher
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern IntPtr GetCurrentProcess();
 
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        public static extern uint QueryDosDevice(string lpDeviceName, StringBuilder lpTargetPath, uint ucchMax);
+
         public const uint PROCESS_DUP_HANDLE = 0x0040;
         public const uint DUPLICATE_CLOSE_SOURCE = 0x00000001;
         public const uint DUPLICATE_SAME_ACCESS = 0x00000002;
@@ -130,6 +134,43 @@ namespace USBWatcher
                 if (dupHandle != IntPtr.Zero)
                     CloseHandle(dupHandle);
             }
+        }
+
+        private static Dictionary<string, char> _deviceToDrive;
+        private static object _lock = new object();
+
+        public static void BuildDeviceToDriveMap()
+        {
+            lock (_lock)
+            {
+                _deviceToDrive = new Dictionary<string, char>(StringComparer.OrdinalIgnoreCase);
+
+                for (char c = 'A'; c <= 'Z'; c++)
+                {
+                    string driveName = $"{c}:";
+                    StringBuilder sb = new StringBuilder(256);
+                    uint result = QueryDosDevice(driveName, sb, (uint)sb.Capacity);
+                    if (result > 0)
+                    {
+                        string devicePath = sb.ToString();
+                        _deviceToDrive[devicePath] = c;
+                    }
+                }
+            }
+        }
+
+        public static char? GetDriveLetterFromDevicePath(string devicePath)
+        {
+            if (_deviceToDrive == null) return null;
+
+            foreach (var kvp in _deviceToDrive)
+            {
+                if (devicePath.StartsWith(kvp.Key, StringComparison.OrdinalIgnoreCase))
+                {
+                    return kvp.Value;
+                }
+            }
+            return null;
         }
     }
 }

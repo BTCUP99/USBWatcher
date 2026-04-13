@@ -27,6 +27,8 @@ namespace USBWatcher
             var results = new List<ProcessHandleInfo>();
             string drivePrefix = $"{driveLetter}:\\";
 
+            NativeApi.BuildDeviceToDriveMap();
+
             uint returnLength = 0;
             uint status = NativeApi.NtQuerySystemInformation(
                 NativeApi.SystemHandleInformation,
@@ -74,31 +76,46 @@ namespace USBWatcher
                         IntPtr handleValue = new IntPtr(handleInfo.HandleValue);
                         string? filePath = NativeApi.GetHandleName(handleValue, processHandle);
 
-                        if (!string.IsNullOrEmpty(filePath) &&
-                            filePath.StartsWith(drivePrefix, StringComparison.OrdinalIgnoreCase))
+                        if (!string.IsNullOrEmpty(filePath))
                         {
-                            if (!processedProcesses.TryGetValue(handleInfo.UniqueProcessId, out string? processName))
+                            char? handleDrive = null;
+
+                            // 尝试直接用 DOS 路径匹配（如 D:\...）
+                            if (filePath.StartsWith(drivePrefix, StringComparison.OrdinalIgnoreCase))
                             {
-                                try
-                                {
-                                    var process = Process.GetProcessById(handleInfo.UniqueProcessId);
-                                    processName = process.ProcessName;
-                                    processedProcesses[handleInfo.UniqueProcessId] = processName;
-                                }
-                                catch
-                                {
-                                    processName = $"PID: {handleInfo.UniqueProcessId}";
-                                    processedProcesses[handleInfo.UniqueProcessId] = processName;
-                                }
+                                handleDrive = driveLetter;
+                            }
+                            // 尝试用对象管理器路径匹配（如 \Device\HarddiskVolume2\...）
+                            else
+                            {
+                                handleDrive = NativeApi.GetDriveLetterFromDevicePath(filePath);
                             }
 
-                            results.Add(new ProcessHandleInfo
+                            if (handleDrive == driveLetter)
                             {
-                                ProcessId = handleInfo.UniqueProcessId,
-                                ProcessName = processName,
-                                FilePath = filePath,
-                                Handle = handleValue
-                            });
+                                if (!processedProcesses.TryGetValue(handleInfo.UniqueProcessId, out string? processName))
+                                {
+                                    try
+                                    {
+                                        var process = Process.GetProcessById(handleInfo.UniqueProcessId);
+                                        processName = process.ProcessName;
+                                        processedProcesses[handleInfo.UniqueProcessId] = processName;
+                                    }
+                                    catch
+                                    {
+                                        processName = $"PID: {handleInfo.UniqueProcessId}";
+                                        processedProcesses[handleInfo.UniqueProcessId] = processName;
+                                    }
+                                }
+
+                                results.Add(new ProcessHandleInfo
+                                {
+                                    ProcessId = handleInfo.UniqueProcessId,
+                                    ProcessName = processName,
+                                    FilePath = filePath,
+                                    Handle = handleValue
+                                });
+                            }
                         }
                     }
                     catch
