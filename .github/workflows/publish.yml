@@ -24,8 +24,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ./publish/USBWatcher.exe
-          tag_name: v${{ github.run_number }}
-          name: USBWatcher v${{ github.run_number }}
-          draft: true
+          draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
